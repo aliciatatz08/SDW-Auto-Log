@@ -472,6 +472,13 @@ function showSetupError(msg) {
   document.getElementById('setup-error').style.display = 'flex';
 }
 
+function showSetupScreen() {
+  document.getElementById('setup-screen').style.display = 'flex';
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').style.display = 'none';
+  setTimeout(() => document.getElementById('setup-url').focus(), 100);
+}
+
 function showLoginScreen() {
   document.getElementById('setup-screen').style.display = 'none';
   document.getElementById('login-screen').style.display = 'flex';
@@ -794,19 +801,40 @@ function sendMotReminder(vehicleId) {
     ? `URGENT: MOT Expired — ${v.registration} ${v.make} ${v.model}`
     : `MOT Reminder — ${v.registration} ${v.make} ${v.model}`;
 
-  const body = expired
+  const logoSrc = 'sdw-logo.png'; // Save the attached logo as sdw-logo.png in the project root, or replace with a hosted URL/data URI.
+  const logoHtml = `<div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="SDW Automotive" style="max-width:280px;width:100%;height:auto;display:block;margin:0 auto;"></div>`;
+
+  const htmlBody = expired
+    ? `${logoHtml}<p>Dear ${v.customer_name||'Customer'},</p><p>This is a reminder that the MOT for your ${v.year?v.year+' ':''}${v.make} ${v.model} (${v.registration}) expired on ${fmt(v.mot_date)} — ${Math.abs(days)} days ago.</p><p>It is a legal requirement to have a valid MOT to drive on public roads. Please contact us as soon as possible to arrange a test.</p><p>Please call us on 07815 510002 or reply to this email to book your appointment.</p><p>Kind regards,<br><strong>SDW Automotive</strong><br>07815 510002<br><a href="mailto:info@sdwautomotive.co.uk">info@sdwautomotive.co.uk</a></p>`
+    : `${logoHtml}<p>Dear ${v.customer_name||'Customer'},</p><p>This is a friendly reminder that the MOT for your ${v.year?v.year+' ':''}${v.make} ${v.model} (${v.registration}) is due on ${fmt(v.mot_date)}${days<=30?' — that is only '+days+' day'+(days!==1?'s':'')+' away':''}.</p>${days<=30?'<p>We recommend booking your appointment soon to avoid any lapse.</p>':'<p>When you are ready to book, please do not hesitate to get in touch.</p>'}<p>Please call us on 07815 510002 or reply to this email to arrange a convenient time.</p><p>Kind regards,<br><strong>SDW Automotive</strong><br>07815 510002<br><a href="mailto:info@sdwautomotive.co.uk">info@sdwautomotive.co.uk</a></p>`;
+
+  const plainBody = expired
     ? `Dear ${v.customer_name||'Customer'},\n\nThis is a reminder that the MOT for your ${v.year?v.year+' ':''}${v.make} ${v.model} (${v.registration}) expired on ${fmt(v.mot_date)} — ${Math.abs(days)} days ago.\n\nIt is a legal requirement to have a valid MOT to drive on public roads. Please contact us as soon as possible to arrange a test.\n\nPlease call us on 07815 510002 or reply to this email to book your appointment.\n\nKind regards,\nSDW Automotive\n07815 510002\ninfo@sdwautomotive.co.uk`
-    : `Dear ${v.customer_name||'Customer'},\n\nThis is a friendly reminder that the MOT for your ${v.year?v.year+' ':''}${v.make} ${v.model} (${v.registration}) is due on ${fmt(v.mot_date)}${days<=30?' — that is only '+days+' day'+(days!==1?'s':'')+' away':''}.${days<=30?'\n\nWe recommend booking your appointment soon to avoid any lapse.':'\n\nWhen you are ready to book, please do not hesitate to get in touch.'}\n\nPlease call us on 07815 510002 or reply to this email to arrange a convenient time.\n\nKind regards,\nSDW Automotive\n07815 510002\ninfo@sdwautomotive.co.uk`;
+    : `Dear ${v.customer_name||'Customer'},\n\nThis is a friendly reminder that the MOT for your ${v.year?v.year+' ':''}${v.make} ${v.model} (${v.registration}) is due on ${fmt(v.mot_date)}${days<=30?' — that is only '+days+' day'+(days!==1?'s':'')+' away':''}.` +
+      `${days<=30?`\n\nWe recommend booking your appointment soon to avoid any lapse.`:`\n\nWhen you are ready to book, please do not hesitate to get in touch.`}\n\nPlease call us on 07815 510002 or reply to this email to arrange a convenient time.\n\nKind regards,\nSDW Automotive\n07815 510002\ninfo@sdwautomotive.co.uk`;
 
-  // Copy body to clipboard
-  navigator.clipboard.writeText(body).catch(()=>{});
+  copyEmailToClipboard(htmlBody, plainBody);
 
-  // Open AOL compose with To and Subject pre-filled
   const aolUrl = `https://mail.aol.com/d/compose?to=${encodeURIComponent(v.customer_email)}&subject=${encodeURIComponent(subject)}`;
   window.open(aolUrl, '_blank');
 
-  // Show instruction toast
   showEmailToast(v.customer_name||v.registration);
+}
+
+async function copyEmailToClipboard(html, text) {
+  if (navigator.clipboard && navigator.clipboard.write) {
+    try {
+      const item = new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([text], { type: 'text/plain' })
+      });
+      await navigator.clipboard.write([item]);
+      return;
+    } catch (err) {
+      // Fallback to plain text if HTML clipboard write is unsupported.
+    }
+  }
+  await navigator.clipboard.writeText(text);
 }
 
 function showEmailToast(name) {
@@ -816,7 +844,7 @@ function showEmailToast(name) {
   el.style.cssText = 'max-width:320px;flex-direction:column;align-items:flex-start;gap:4px;';
   el.innerHTML = `
     <div style="display:flex;align-items:center;gap:8px;font-weight:600;"><i class="ti ti-mail-check" style="font-size:14px;color:var(--green);"></i> AOL opened for ${name}</div>
-    <div style="font-size:11px;color:var(--muted);line-height:1.5;">Body copied to clipboard.<br>Click the message area in AOL and press <strong style="color:var(--text);">Ctrl + V</strong> to paste.</div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.5;">HTML email body copied to clipboard.<br>Paste into the AOL message body in rich text/HTML mode. If that fails, use plain text paste instead.</div>
   `;
   t.appendChild(el);
   setTimeout(() => el.remove(), 7000);
@@ -888,13 +916,14 @@ async function saveVehicle() {
   const reg = document.getElementById('v-reg').value.trim().toUpperCase();
   if (!reg) { toast('Registration is required','error'); return; }
   const editId = document.getElementById('v-edit-id').value;
+  const mileageValue = document.getElementById('v-mileage').value;
   const data = {
     registration:reg,
     year:document.getElementById('v-year').value||null,
     make:document.getElementById('v-make').value,
     model:document.getElementById('v-model').value,
     colour:document.getElementById('v-colour').value,
-    mileage:document.getElementById('v-mileage').value||null,
+    mileage:mileageValue ? Number(mileageValue) : null,
     customer_name:document.getElementById('v-cust').value,
     customer_phone:document.getElementById('v-phone').value,
     customer_email:document.getElementById('v-email').value,
@@ -995,12 +1024,12 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 const SDW_URL = 'https://wezveucypcsnalebazxw.supabase.co';
-const SDW_KEY = 'PASTE_YOUR_ANON_KEY_HERE';
+const SDW_KEY = 'sb_publishable_tgiiZQmRhTJU0aWDs5VyNw_CZkYWpLX';
 
 (async () => {
   sb = supabase.createClient(SDW_URL, SDW_KEY);
-  const { data: { session } } = await sb.auth.getSession();
-  if (session) {
+  const { data: { session }, error } = await sb.auth.getSession();
+  if (!error && session) {
     document.getElementById('user-email-display').textContent = session.user.email;
     await launchApp();
     return;
