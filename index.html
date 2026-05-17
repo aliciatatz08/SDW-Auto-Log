@@ -946,24 +946,18 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
+const SDW_URL = 'https://wezveucypcsnalebazxw.supabase.co';
+const SDW_KEY = 'sb_publishable_tgiiZQmRhTJU0aWDs5VyNw_CZkYWpLX';
+
 (async () => {
-  const url = localStorage.getItem('sdw_sb_url');
-  const key = localStorage.getItem('sdw_sb_key');
-  if (url && key) {
-    sb = supabase.createClient(url, key);
-    // Check for existing session
-    const { data: { session } } = await sb.auth.getSession();
-    if (session) {
-      document.getElementById('user-email-display').textContent = session.user.email;
-      await launchApp();
-      return;
-    }
-    // Credentials saved but not logged in — show login
-    showLoginScreen();
+  sb = supabase.createClient(SDW_URL, SDW_KEY);
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) {
+    document.getElementById('user-email-display').textContent = session.user.email;
+    await launchApp();
     return;
   }
-  // No credentials saved — show setup
-  document.getElementById('setup-screen').style.display = 'flex';
+  showLoginScreen();
 })();
 </script>
 </body>
