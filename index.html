@@ -809,7 +809,7 @@ function sendMotReminder(vehicleId) {
     ? `URGENT: MOT Expired — ${v.registration} ${v.make} ${v.model}`
     : `MOT Reminder — ${v.registration} ${v.make} ${v.model}`;
 
-  const logoSrc = 'sdw-logo.png'; // Save the attached logo as sdw-logo.png in the project root, or replace with a hosted URL/data URI.
+  const logoSrc = 'sdw-logo.png';
   const logoHtml = `<div style="text-align:center;margin-bottom:24px;"><img src="${logoSrc}" alt="SDW Automotive" style="max-width:280px;width:100%;height:auto;display:block;margin:0 auto;"></div>`;
 
   const htmlBody = expired
