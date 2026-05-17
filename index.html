@@ -609,11 +609,13 @@ function renderDashboard() {
   let alertsHTML = '';
   if (!expired.length && !dueSoon.length) alertsHTML = '<div class="empty"><i class="ti ti-circle-check"></i>No urgent MOT alerts</div>';
   expired.forEach(v => {
-    alertsHTML += `<div class="alert-item urgent"><i class="ti ti-alert-triangle alert-icon" style="color:#f44336;"></i><div class="alert-text"><strong>${v.registration} — ${v.make} ${v.model}</strong><span>${v.customer_name||'No customer'} · MOT expired ${Math.abs(daysUntilMOT(v.mot_date))} days ago</span></div><button class="btn sm" onclick="viewVehicle('${v.id}')">View</button></div>`;
+    const hasEmail = !!(v.customer_email);
+    alertsHTML += `<div class="alert-item urgent"><i class="ti ti-alert-triangle alert-icon" style="color:#f44336;"></i><div class="alert-text"><strong>${v.registration} — ${v.make} ${v.model}</strong><span>${v.customer_name||'No customer'} · MOT expired ${Math.abs(daysUntilMOT(v.mot_date))} days ago</span></div><div style="display:flex;gap:6px;flex-shrink:0;">${hasEmail?`<button class="btn sm" style="background:transparent;border:1px solid var(--red);color:var(--red);" onclick="sendMotReminder('${v.id}')"><i class="ti ti-mail"></i> Remind</button>`:''}<button class="btn sm" onclick="viewVehicle('${v.id}')">View</button></div></div>`;
   });
   dueSoon.forEach(v => {
     const d = daysUntilMOT(v.mot_date);
-    alertsHTML += `<div class="alert-item"><i class="ti ti-clock alert-icon" style="color:var(--amber);"></i><div class="alert-text"><strong>${v.registration} — ${v.make} ${v.model}</strong><span>${v.customer_name||'No customer'} · MOT due in ${d} day${d!==1?'s':''}</span></div><button class="btn sm" onclick="viewVehicle('${v.id}')">View</button></div>`;
+    const hasEmail = !!(v.customer_email);
+    alertsHTML += `<div class="alert-item"><i class="ti ti-clock alert-icon" style="color:var(--amber);"></i><div class="alert-text"><strong>${v.registration} — ${v.make} ${v.model}</strong><span>${v.customer_name||'No customer'} · MOT due in ${d} day${d!==1?'s':''}</span></div><div style="display:flex;gap:6px;flex-shrink:0;">${hasEmail?`<button class="btn sm" style="background:transparent;border:1px solid var(--red);color:var(--red);" onclick="sendMotReminder('${v.id}')"><i class="ti ti-mail"></i> Remind</button>`:''}<button class="btn sm" onclick="viewVehicle('${v.id}')">View</button></div></div>`;
   });
   document.getElementById('dashboard-alerts').innerHTML = alertsHTML;
 
@@ -700,6 +702,7 @@ function viewVehicle(id) {
         <p>${v.colour?v.colour+' · ':''}${v.customer_name||'No customer'}${v.customer_phone?' · '+v.customer_phone:''}</p>
       </div>
       <div style="margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;">
+        ${v.customer_email && v.mot_date ? `<button class="btn sm" style="background:transparent;border:1px solid var(--red);color:var(--red);" onclick="sendMotReminder('${v.id}')"><i class="ti ti-mail"></i> Send MOT Reminder</button>` : ''}
         <button class="btn ghost sm" onclick="openVehicleModal('${v.id}')"><i class="ti ti-edit"></i> Edit</button>
         <button class="btn sm" onclick="openRecordModal('${v.id}',null,null)"><i class="ti ti-plus"></i> Add Record</button>
         <button class="del-btn" onclick="deleteVehicle('${v.id}')"><i class="ti ti-trash"></i> Delete Vehicle</button>
@@ -763,15 +766,60 @@ function renderReminders() {
     const days = daysUntilMOT(v.mot_date);
     const urgent = days!==null&&days<0;
     const soon = days!==null&&days>=0&&days<=30;
+    const hasEmail = !!(v.customer_email);
     return `<div class="alert-item ${urgent?'urgent':''}">
       <i class="ti ti-bell alert-icon" style="color:${urgent?'#f44336':soon?'var(--amber)':'var(--green)'}; font-size:18px;"></i>
       <div class="alert-text">
         <strong>${v.registration} — ${v.make} ${v.model} · ${v.customer_name||'No customer'}</strong>
-        <span>MOT ${fmt(v.mot_date)} · ${days<0?'Expired '+Math.abs(days)+' days ago':days+' days remaining'} · Reminder active every 12 months from input date</span>
+        <span>MOT ${fmt(v.mot_date)} · ${days<0?'Expired '+Math.abs(days)+' days ago':days+' days remaining'}${hasEmail?' · '+v.customer_email:' · No email on record'}</span>
       </div>
-      <button class="btn sm" onclick="viewVehicle('${v.id}')">View</button>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        ${hasEmail
+          ? `<button class="btn sm" style="background:transparent;border:1px solid var(--red);color:var(--red);" onclick="sendMotReminder('${v.id}')"><i class="ti ti-mail"></i> Send Reminder</button>`
+          : `<button class="btn sm" style="background:transparent;border:1px solid #444;color:#555;cursor:not-allowed;" title="No email address on record"><i class="ti ti-mail-off"></i> No Email</button>`
+        }
+        <button class="btn sm" onclick="viewVehicle('${v.id}')">View</button>
+      </div>
     </div>`;
   }).join('');
+}
+
+function sendMotReminder(vehicleId) {
+  const v = vehicles.find(x=>x.id===vehicleId);
+  if (!v || !v.customer_email) { toast('No email address for this customer','error'); return; }
+  const days = daysUntilMOT(v.mot_date);
+  const expired = days !== null && days < 0;
+
+  const subject = expired
+    ? `URGENT: MOT Expired — ${v.registration} ${v.make} ${v.model}`
+    : `MOT Reminder — ${v.registration} ${v.make} ${v.model}`;
+
+  const body = expired
+    ? `Dear ${v.customer_name||'Customer'},\n\nThis is a reminder that the MOT for your ${v.year?v.year+' ':''}${v.make} ${v.model} (${v.registration}) expired on ${fmt(v.mot_date)} — ${Math.abs(days)} days ago.\n\nIt is a legal requirement to have a valid MOT to drive on public roads. Please contact us as soon as possible to arrange a test.\n\nPlease call us on 07815 510002 or reply to this email to book your appointment.\n\nKind regards,\nSDW Automotive\n07815 510002\ninfo@sdwautomotive.co.uk`
+    : `Dear ${v.customer_name||'Customer'},\n\nThis is a friendly reminder that the MOT for your ${v.year?v.year+' ':''}${v.make} ${v.model} (${v.registration}) is due on ${fmt(v.mot_date)}${days<=30?' — that is only '+days+' day'+(days!==1?'s':'')+' away':''}.${days<=30?'\n\nWe recommend booking your appointment soon to avoid any lapse.':'\n\nWhen you are ready to book, please do not hesitate to get in touch.'}\n\nPlease call us on 07815 510002 or reply to this email to arrange a convenient time.\n\nKind regards,\nSDW Automotive\n07815 510002\ninfo@sdwautomotive.co.uk`;
+
+  // Copy body to clipboard
+  navigator.clipboard.writeText(body).catch(()=>{});
+
+  // Open AOL compose with To and Subject pre-filled
+  const aolUrl = `https://mail.aol.com/d/compose?to=${encodeURIComponent(v.customer_email)}&subject=${encodeURIComponent(subject)}`;
+  window.open(aolUrl, '_blank');
+
+  // Show instruction toast
+  showEmailToast(v.customer_name||v.registration);
+}
+
+function showEmailToast(name) {
+  const t = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast-msg';
+  el.style.cssText = 'max-width:320px;flex-direction:column;align-items:flex-start;gap:4px;';
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;font-weight:600;"><i class="ti ti-mail-check" style="font-size:14px;color:var(--green);"></i> AOL opened for ${name}</div>
+    <div style="font-size:11px;color:var(--muted);line-height:1.5;">Body copied to clipboard.<br>Click the message area in AOL and press <strong style="color:var(--text);">Ctrl + V</strong> to paste.</div>
+  `;
+  t.appendChild(el);
+  setTimeout(() => el.remove(), 7000);
 }
 
 // ─── DIAGNOSTICS / SERVICES ───────────────────────────────────────────────────
@@ -947,7 +995,7 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 
 const SDW_URL = 'https://wezveucypcsnalebazxw.supabase.co';
-const SDW_KEY = 'sb_publishable_tgiiZQmRhTJU0aWDs5VyNw_CZkYWpLX';
+const SDW_KEY = 'PASTE_YOUR_ANON_KEY_HERE';
 
 (async () => {
   sb = supabase.createClient(SDW_URL, SDW_KEY);
