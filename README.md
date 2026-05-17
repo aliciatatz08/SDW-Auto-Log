@@ -103,5 +103,3 @@ Open that URL on any computer, enter your Supabase key once, and you're connecte
 - [GitHub Pages](https://pages.github.com) — free hosting
 
 ---
-
-*SDW Automotive · 07815 510002 · info@sdwautomotive.co.uk*
