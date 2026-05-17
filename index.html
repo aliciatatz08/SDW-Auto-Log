@@ -269,13 +269,13 @@ select option{background:var(--panel);}
   <div class="body">
     <div class="sidebar">
       <div class="nav-section">Main</div>
-      <div class="nav-item active" onclick="showView('dashboard')"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
-      <div class="nav-item" onclick="showView('vehicles')"><i class="ti ti-car"></i>Vehicles</div>
-      <div class="nav-item" onclick="showView('mot')"><i class="ti ti-certificate"></i>MOT Tracker</div>
-      <div class="nav-item" onclick="showView('reminders')"><i class="ti ti-bell"></i>Reminders</div>
+      <div class="nav-item active" onclick="showView('dashboard', event)"><i class="ti ti-layout-dashboard"></i>Dashboard</div>
+      <div class="nav-item" onclick="showView('vehicles', event)"><i class="ti ti-car"></i>Vehicles</div>
+      <div class="nav-item" onclick="showView('mot', event)"><i class="ti ti-certificate"></i>MOT Tracker</div>
+      <div class="nav-item" onclick="showView('reminders', event)"><i class="ti ti-bell"></i>Reminders</div>
       <div class="nav-section">Records</div>
-      <div class="nav-item" onclick="showView('diagnostics')"><i class="ti ti-cpu"></i>Diagnostics</div>
-      <div class="nav-item" onclick="showView('services')"><i class="ti ti-tool"></i>Services</div>
+      <div class="nav-item" onclick="showView('diagnostics', event)"><i class="ti ti-cpu"></i>Diagnostics</div>
+      <div class="nav-item" onclick="showView('services', event)"><i class="ti ti-tool"></i>Services</div>
     </div>
 
     <div class="main" id="main-content">
@@ -578,11 +578,11 @@ function toast(msg, type='ok') {
 
 // ─── VIEWS ───────────────────────────────────────────────────────────────────
 
-function showView(v) {
+function showView(v, ev) {
   document.querySelectorAll('[id^="view-"]').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   document.getElementById('view-' + v).style.display = 'block';
-  event && event.currentTarget && event.currentTarget.classList.add('active');
+  ev?.currentTarget?.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(el => {
     if (el.textContent.toLowerCase().trim().startsWith(v.substring(0,4))) el.classList.add('active');
   });
@@ -777,11 +777,16 @@ function renderReminders() {
     const urgent = days!==null&&days<0;
     const soon = days!==null&&days>=0&&days<=30;
     const hasEmail = !!(v.customer_email);
+    const countdown = days === null
+      ? 'No MOT date set'
+      : days < 0
+        ? 'Expired ' + Math.abs(days) + ' days ago'
+        : days + ' days remaining';
     return `<div class="alert-item ${urgent?'urgent':''}">
       <i class="ti ti-bell alert-icon" style="color:${urgent?'#f44336':soon?'var(--amber)':'var(--green)'}; font-size:18px;"></i>
       <div class="alert-text">
         <strong>${v.registration} — ${v.make} ${v.model} · ${v.customer_name||'No customer'}</strong>
-        <span>MOT ${fmt(v.mot_date)} · ${days<0?'Expired '+Math.abs(days)+' days ago':days+' days remaining'}${hasEmail?' · '+v.customer_email:' · No email on record'}</span>
+        <span>MOT ${fmt(v.mot_date)} · ${countdown}${hasEmail?' · '+v.customer_email:' · No email on record'}</span>
       </div>
       <div style="display:flex;gap:6px;flex-shrink:0;">
         ${hasEmail
