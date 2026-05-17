@@ -424,6 +424,7 @@ select option{background:var(--panel);}
         <div class="form-group full"><label>Notes / Fault Codes / Work Carried Out</label><textarea id="r-desc" placeholder="Detailed description, fault codes, parts used, readings…" style="min-height:120px;"></textarea></div>
         <div class="form-group"><label>Cost (£)</label><input id="r-cost" type="number" placeholder="0.00" step="0.01"></div>
         <div class="form-group"><label>File Names (comma separated)</label><input id="r-files" placeholder="scan.pdf, report.jpg"></div>
+        <div class="form-group"><label>Upload File</label><input id="r-upload" type="file" accept="application/pdf,image/*" onchange="handleUploadFile()"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -685,7 +686,10 @@ function viewVehicle(id) {
     if (!list.length) return `<div class="empty"><i class="ti ti-file-off"></i>No ${type||''} records</div>`;
     return list.map(r => {
       const cls = r.type==='diagnostic'?'diag':r.type==='service'?'service':r.type==='mot'?'mot':'';
-      const files = r.files&&r.files.length ? '<div style="margin-top:7px;">'+r.files.map(f=>`<span class="file-chip"><i class="ti ti-file" style="font-size:11px;"></i>${f}</span>`).join('')+'</div>' : '';
+      const files = r.files&&r.files.length ? '<div style="margin-top:7px;">'+r.files.map(f=>{
+        const name = f.split('/').pop();
+        return `<a class="file-chip" href="#" onclick="openRecordFile('${f}');return false;"><i class="ti ti-file" style="font-size:11px;"></i>${name}</a>`;
+      }).join('')+'</div>' : '';
       const badgeCls = r.type==='service'?'green':r.type==='mot'?'amber':'blue';
       return `<div class="history-item ${cls}">
         <div class="hi-date">${fmt(r.date)}${r.mileage?' · '+Number(r.mileage).toLocaleString()+' mi':''}${r.cost?' · £'+Number(r.cost).toFixed(2):''}</div>
@@ -866,7 +870,10 @@ function renderDiagnostics() {
   if (!list.length) { el.innerHTML = '<div class="empty"><i class="ti ti-cpu-off"></i>No diagnostic records</div>'; return; }
   el.innerHTML = list.map(r => {
     const v = vehicles.find(x=>x.id===r.vehicle_id);
-    const files = r.files&&r.files.length ? '<div style="margin-top:7px;">'+r.files.map(f=>`<span class="file-chip"><i class="ti ti-file" style="font-size:11px;"></i>${f}</span>`).join('')+'</div>' : '';
+    const files = r.files&&r.files.length ? '<div style="margin-top:7px;">'+r.files.map(f=>{
+      const name = f.split('/').pop();
+      return `<a class="file-chip" href="#" onclick="openRecordFile('${f}');return false;"><i class="ti ti-file" style="font-size:11px;"></i>${name}</a>`;
+    }).join('')+'</div>' : '';
     return `<div class="history-item diag">
       <div class="hi-date">${fmt(r.date)} · <span class="reg" style="font-size:10px;">${v?v.registration:'—'}</span> ${v?v.make+' '+v.model:''}</div>
       <div class="hi-title">${r.title}</div>
@@ -1026,6 +1033,52 @@ async function deleteRecord(id) {
 }
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
+
+async function handleUploadFile() {
+  const inp = document.getElementById('r-upload');
+  if (!inp || !inp.files || !inp.files.length) return;
+  const file = inp.files[0];
+  const vehicleId = document.getElementById('r-vehicle')?.value;
+  if (!vehicleId) { toast('Select a vehicle before uploading','error'); inp.value = ''; return; }
+  const path = `${vehicleId}/${Date.now()}_${file.name}`;
+  try {
+    const { data, error } = await sb.storage.from('records').upload(path, file);
+    if (error) {
+      // If file already exists, suggest upsert option
+      if (error.message && error.message.includes('duplicate')) {
+        toast('File exists. Try renaming or delete the existing file.','error');
+      } else {
+        toast('Upload failed: ' + (error.message||error), 'error');
+      }
+      inp.value = '';
+      return;
+    }
+    // append the storage path to the r-files input
+    const filesEl = document.getElementById('r-files');
+    const existing = filesEl.value ? filesEl.value.split(',').map(s=>s.trim()).filter(Boolean) : [];
+    existing.push(path);
+    filesEl.value = existing.join(', ');
+    toast('File uploaded: ' + file.name);
+    inp.value = '';
+  } catch (e) {
+    toast('Upload error: ' + (e.message||e),'error');
+    inp.value = '';
+  }
+}
+
+async function openRecordFile(path) {
+  if (!sb?.storage?.from) { toast('Storage client not available','error'); return; }
+  try {
+    const { data, error } = await sb.storage.from('records').createSignedUrl(path, 60);
+    if (error || !data?.signedUrl) {
+      toast('Unable to open file. Please check storage rules.','error');
+      return;
+    }
+    window.open(data.signedUrl, '_blank');
+  } catch (err) {
+    toast('Could not open file: ' + (err.message||err),'error');
+  }
+}
 
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 
